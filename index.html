@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LiDAR Ready Particle System
+       
+
+    </title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: monospace; }
+        canvas { display: block; }
+
+        #ui-panel {
+            position: absolute;
+            top: 20px; right: 20px;
+            width: 300px;
+            background: rgba(20, 20, 20, 0.9);
+            border: 1px solid #444;
+            padding: 20px;
+            border-radius: 8px;
+            color: #ccc;
+        }
+
+        h3 {
+            margin: 0 0 15px 0;
+            color: #fff;
+            font-size: 14px;
+            text-transform: uppercase;
+            border-bottom: 1px solid #444;
+            padding-bottom: 10px;
+        }
+
+        .control-group { margin-bottom: 15px; }
+
+        label {
+            display: block;
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 5px;
+        }
+
+        select, button, input[type=file] {
+            width: 100%;
+            padding: 8px;
+            background: #333;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 5px;
+        }
+
+        button:hover { background: #555; }
+        button.active { background: #00cc44; color: black; font-weight: bold; }
+
+        input[type=range] { width: 100%; }
+
+        #drop-zone {
+            border: 1px dashed #555;
+            padding: 12px;
+            text-align: center;
+            font-size: 11px;
+            color: #aaa;
+            border-radius: 4px;
+        }
+
+        #drop-zone.dragover {
+            background: rgba(0, 204, 68, 0.15);
+            border-color: #00cc44;
+            color: #00cc44;
+        }
+
+        .note {
+            font-size: 10px;
+            color: #666;
+            font-style: italic;
+            line-height: 1.3;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui-panel">
+    <h3>Depth Engine</h3>
+    <h3> Idea + Prototypeby Darius Desir 
+        Engineered + Deployed by ALall</h3>
+
+    <div class="control-group">
+        <label>VIDEO SOURCE</label>
+        <select id="cameraSelect">
+            <option value="" disabled selected>Loading cameras...</option>
+        </select>
+        <button id="btn-refresh">Refresh List</button>
+    </div>
+
+    <div class="control-group">
+        <label>IMAGE SOURCE</label>
+        <input type="file" id="imageInput" accept="image/*">
+        <div id="drop-zone">Drop depth image here</div>
+    </div>
+
+    <div class="control-group">
+        <label>VIDEO FILE SOURCE (MAX 30S)</label>
+        <input type="file" id="videoInput" accept="video/*">
+        <div id="video-drop-zone">Drop video here (LiDAR)</div>
+    </div>
+
+    <div class="control-group">
+        <label>INTERPRETATION MODE</label>
+        <button id="btn-mode" onclick="toggleMode()">MODE: SIMULATION (LIGHT)</button>
+    </div>
+
+    <div class="control-group">
+        <label>DEPTH (Z AMPLITUDE)</label>
+        <input type="range" id="depth-range" min="0" max="300" value="100">
+    </div>
+
+    <div class="control-group">
+        <label>CALIBRATION (CONTRAST)</label>
+        <input type="range" id="contrast-range" min="0" max="2" step="0.1" value="1.0">
+    </div>
+
+    <p class="note">
+        LiDAR mode should only be enabled when using a grayscale depth map.
+        Black equals far. White equals near.
+    </p>
+</div>
+
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const state = {
+    isLidarMode: false,
+    depthStrength: 100,
+    contrast: 1
+};
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 0, 150);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+/* ---------- VIDEO SETUP ---------- */
+
+const video = document.createElement('video');
+video.autoplay = true;
+video.muted = true;
+video.playsInline = true;
+
+let activeTexture = new THREE.VideoTexture(video);
+
+const cameraSelect = document.getElementById('cameraSelect');
+const refreshBtn = document.getElementById('btn-refresh');
+
+async function getCameras() {
+    cameraSelect.innerHTML = '<option disabled selected>Select camera...</option>';
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    devices.filter(d => d.kind === 'videoinput').forEach((device, i) => {
+        const opt = document.createElement('option');
+        opt.value = device.deviceId;
+        opt.text = device.label || `Camera ${i + 1}`;
+        cameraSelect.appendChild(opt);
+    });
+}
+
+async function startStream(deviceId) {
+    const stream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: deviceId ? { exact: deviceId } : undefined }
+    });
+    video.srcObject = stream;
+    video.play();
+    activeTexture = new THREE.VideoTexture(video);
+    material.uniforms.uTexture.value = activeTexture;
+}
+
+refreshBtn.onclick = getCameras;
+cameraSelect.onchange = e => startStream(e.target.value);
+
+getCameras().then(() => startStream());
+
+/* ---------- IMAGE INPUT ---------- */
+
+const imageInput = document.getElementById('imageInput');
+const dropZone = document.getElementById('drop-zone');
+const videoInput = document.getElementById('videoInput');
+const videoDropZone = document.getElementById('video-drop-zone');
+const MAX_VIDEO_SECONDS = 30;
+let activeObjectUrl = null;
+
+function setTexture(tex) {
+    material.uniforms.uTexture.value = tex;
+}
+
+function clearActiveObjectUrl() {
+    if (activeObjectUrl) {
+        URL.revokeObjectURL(activeObjectUrl);
+        activeObjectUrl = null;
+    }
+}
+
+function loadImage(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    clearActiveObjectUrl();
+    const img = new Image();
+    img.onload = () => {
+        const tex = new THREE.Texture(img);
+        tex.needsUpdate = true;
+        setTexture(tex);
+    };
+    activeObjectUrl = URL.createObjectURL(file);
+    img.src = activeObjectUrl;
+}
+
+function loadVideoFile(file) {
+    if (!file || !file.type.startsWith('video/')) return;
+    clearActiveObjectUrl();
+    const objectUrl = URL.createObjectURL(file);
+    const probe = document.createElement('video');
+    probe.preload = 'metadata';
+    probe.onloadedmetadata = () => {
+        const duration = probe.duration;
+        if (!Number.isFinite(duration) || duration > MAX_VIDEO_SECONDS) {
+            alert(`Video too long. Max allowed length is ${MAX_VIDEO_SECONDS} seconds.`);
+            URL.revokeObjectURL(objectUrl);
+            return;
+        }
+
+        if (video.srcObject) {
+            video.srcObject.getTracks().forEach(track => track.stop());
+            video.srcObject = null;
+        }
+
+        activeObjectUrl = objectUrl;
+        video.loop = true;
+        video.src = activeObjectUrl;
+        video.play();
+        setTexture(new THREE.VideoTexture(video));
+    };
+    probe.onerror = () => {
+        alert('Invalid video file.');
+        URL.revokeObjectURL(objectUrl);
+    };
+    probe.src = objectUrl;
+}
+
+imageInput.onchange = e => loadImage(e.target.files[0]);
+videoInput.onchange = e => loadVideoFile(e.target.files[0]);
+
+dropZone.ondragover = e => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+};
+
+dropZone.ondragleave = () => dropZone.classList.remove('dragover');
+
+dropZone.ondrop = e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    loadImage(e.dataTransfer.files[0]);
+};
+
+videoDropZone.ondragover = e => {
+    e.preventDefault();
+    videoDropZone.classList.add('dragover');
+};
+
+videoDropZone.ondragleave = () => videoDropZone.classList.remove('dragover');
+
+videoDropZone.ondrop = e => {
+    e.preventDefault();
+    videoDropZone.classList.remove('dragover');
+    loadVideoFile(e.dataTransfer.files[0]);
+};
+
+/* ---------- PARTICLES ---------- */
+
+const width = 400, height = 300;
+const count = width * height;
+
+const geometry = new THREE.BufferGeometry();
+const positions = new Float32Array(count * 3);
+const uvs = new Float32Array(count * 2);
+
+for (let i = 0; i < width; i++) {
+    for (let j = 0; j < height; j++) {
+        const id = i + j * width;
+        positions[id * 3] = (i - width / 2) * 0.5;
+        positions[id * 3 + 1] = (height / 2 - j) * 0.5;
+        positions[id * 3 + 2] = 0;
+        uvs[id * 2] = i / width;
+        uvs[id * 2 + 1] = 1 - j / height;
+    }
+}
+
+geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+
+const material = new THREE.ShaderMaterial({
+    uniforms: {
+        uTexture: { value: activeTexture },
+        uDepthFactor: { value: 100 },
+        uContrast: { value: 1 },
+        uLidarMode: { value: 0 }
+    },
+    vertexShader: `
+        uniform sampler2D uTexture;
+        uniform float uDepthFactor;
+        uniform float uContrast;
+        uniform float uLidarMode;
+        varying vec2 vUv;
+        varying float vElevation;
+
+        void main() {
+            vUv = uv;
+            vec4 c = texture2D(uTexture, uv);
+            float luma = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+            float fakeDepth = luma * (1.0 - distance(uv, vec2(0.5)));
+            float realDepth = (luma - 0.1) * uContrast;
+            float depth = mix(fakeDepth, realDepth, uLidarMode);
+            vec3 pos = position;
+            pos.z += depth * uDepthFactor;
+            vElevation = depth;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+            gl_PointSize = depth > 0.05 ? 2.5 : 0.0;
+        }
+    `,
+    fragmentShader: `
+        varying vec2 vUv;
+        varying float vElevation;
+        uniform sampler2D uTexture;
+        uniform float uLidarMode;
+
+        void main() {
+            vec3 base = texture2D(uTexture, vUv).rgb;
+            vec3 heat = mix(vec3(0,0,1), vec3(1,0,0), vElevation);
+            gl_FragColor = vec4(mix(base, heat, uLidarMode * 0.5), 1.0);
+        }
+    `,
+    transparent: true
+});
+
+scene.add(new THREE.Points(geometry, material));
+
+window.toggleMode = () => {
+    state.isLidarMode = !state.isLidarMode;
+    material.uniforms.uLidarMode.value = state.isLidarMode ? 1 : 0;
+    const btn = document.getElementById('btn-mode');
+    btn.textContent = state.isLidarMode
+        ? 'MODE: LIDAR / DEPTH MAP'
+        : 'MODE: SIMULATION (LIGHT)';
+    btn.classList.toggle('active', state.isLidarMode);
+};
+
+document.getElementById('depth-range').oninput = e =>
+    material.uniforms.uDepthFactor.value = e.target.value;
+
+document.getElementById('contrast-range').oninput = e =>
+    material.uniforms.uContrast.value = e.target.value;
+
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+}
+animate();
+
+window.onresize = () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+};
+</script>
+</body>
+</html>
