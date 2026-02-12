@@ -14,19 +14,19 @@
             position: absolute;
             top: 20px; right: 20px;
             width: 300px;
-            background: rgba(255, 255, 255, 0.96);
-            border: 1px solid #cfcfcf;
+            background: rgba(20, 20, 20, 0.9);
+            border: 1px solid #444;
             padding: 20px;
             border-radius: 8px;
-            color: #111;
+            color: #ccc;
         }
 
         h3 {
             margin: 0 0 15px 0;
-            color: #111;
+            color: #fff;
             font-size: 14px;
             text-transform: uppercase;
-            border-bottom: 1px solid #d7d7d7;
+            border-bottom: 1px solid #444;
             padding-bottom: 10px;
         }
 
@@ -35,22 +35,22 @@
         label {
             display: block;
             font-size: 11px;
-            color: #222;
+            color: #888;
             margin-bottom: 5px;
         }
 
         select, button, input[type=file] {
             width: 100%;
             padding: 8px;
-            background: #f4f4f4;
-            color: #111;
-            border: 1px solid #d1d1d1;
+            background: #333;
+            color: white;
+            border: none;
             border-radius: 4px;
             cursor: pointer;
             margin-bottom: 5px;
         }
 
-        button:hover { background: #e8e8e8; }
+        button:hover { background: #555; }
         button.active { background: #00cc44; color: black; font-weight: bold; }
 
         input[type=range] {
@@ -68,8 +68,8 @@
             border-radius: 999px;
             background: linear-gradient(
                 to right,
-                #ff8c1a 0%,
-                #ff8c1a var(--fill),
+                #2bff00 0%,
+                #55ff00 var(--fill),
                 #4a4a4a var(--fill),
                 #4a4a4a 100%
             );
@@ -81,7 +81,7 @@
             width: 14px;
             height: 14px;
             border-radius: 50%;
-            background: #ff8c1a;
+            background: #91ff00;
             margin-top: -4px;
             border: none;
         }
@@ -95,7 +95,7 @@
         input[type=range]::-moz-range-progress {
             height: 6px;
             border-radius: 999px;
-            background: #ff8c1a;
+            background: #9dff00;
         }
 
         input[type=range]::-moz-range-thumb {
@@ -107,7 +107,7 @@
         }
 
         #btn-filters {
-            background: #efefef;
+            background: #2b2b2b;
             margin-bottom: 0;
         }
 
@@ -124,16 +124,16 @@
             opacity: 1;
         }
 
-        #drop-zone, #video-drop-zone {
-            border: 1px dashed #b8b8b8;
+        #drop-zone {
+            border: 1px dashed #555;
             padding: 12px;
             text-align: center;
             font-size: 11px;
-            color: #333;
+            color: #aaa;
             border-radius: 4px;
         }
 
-        #drop-zone.dragover, #video-drop-zone.dragover {
+        #drop-zone.dragover {
             background: rgba(0, 204, 68, 0.15);
             border-color: #00cc44;
             color: #00cc44;
@@ -141,7 +141,7 @@
 
         .note {
             font-size: 10px;
-            color: #333;
+            color: #666;
             font-style: italic;
             line-height: 1.3;
             margin-top: 10px;
@@ -207,7 +207,9 @@
     </div>
 
     <p class="note">
-      
+        LiDAR mode should only be enabled when using a grayscale depth map.
+        Black equals far. White equals near.
+
         <br>
         <br>
 
