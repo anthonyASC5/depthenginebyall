@@ -21,6 +21,31 @@
             color: #ccc;
         }
 
+        #ui-panel.collapsed #ui-panel-content {
+            display: none;
+        }
+
+        #ui-panel.collapsed {
+            width: 220px;
+            padding-bottom: 12px;
+        }
+
+        #btn-panel-toggle {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 32px;
+            margin: 0;
+            padding: 4px 0;
+            line-height: 1;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        #ui-panel > h3:first-of-type {
+            padding-right: 40px;
+        }
+
         h3 {
             margin: 0 0 15px 0;
             color: #fff;
@@ -111,6 +136,23 @@
             margin-bottom: 0;
         }
 
+        .video-controls-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+
+        #video-seek {
+            margin-bottom: 6px;
+        }
+
+        #download-status {
+            margin: 4px 0 0 0;
+            font-size: 10px;
+            color: #9a9a9a;
+        }
+
         #filter-panel {
             max-height: 0;
             opacity: 0;
@@ -124,7 +166,7 @@
             opacity: 1;
         }
 
-        #drop-zone {
+        #drop-zone, #video-drop-zone {
             border: 1px dashed #555;
             padding: 12px;
             text-align: center;
@@ -133,7 +175,7 @@
             border-radius: 4px;
         }
 
-        #drop-zone.dragover {
+        #drop-zone.dragover, #video-drop-zone.dragover {
             background: rgba(0, 204, 68, 0.15);
             border-color: #00cc44;
             color: #00cc44;
@@ -151,7 +193,9 @@
 <body>
 
 <div id="ui-panel">
+    <button id="btn-panel-toggle" type="button" aria-expanded="true" title="Minimize panel">-</button>
     <h3>Depth Engine</h3>
+    <div id="ui-panel-content">
     <h3> Idea + Prototype by Darius Desir 
         Engineered + Deployed by ALall
         Beta
@@ -174,7 +218,26 @@
     <div class="control-group">
         <label>VIDEO FILE SOURCE (MAX 30S)</label>
         <input type="file" id="videoInput" accept="video/*">
-        <div id="video-drop-zone">Drop video here (LiDAR)</div>
+        <div id="video-drop-zone">Drop depth video here</div>
+    </div>
+
+    <div class="control-group">
+        <label>VIDEO PLAYBACK</label>
+        <div class="video-controls-row">
+            <button id="btn-video-play" type="button">PLAY</button>
+            <button id="btn-video-rewind" type="button">REWIND -3S</button>
+        </div>
+        <input type="range" id="video-seek" min="0" max="1" step="0.01" value="0">
+        <label>RECORD DURATION</label>
+        <select id="record-duration">
+            <option value="5">5s</option>
+            <option value="10">10s</option>
+            <option value="15" selected>15s</option>
+            <option value="30">30s</option>
+        </select>
+        <button id="btn-download-lidar" type="button">RECORD LIDAR & DOWNLOAD</button>
+        <button id="btn-canvas-white" type="button">CANVAS WHITE: OFF</button>
+        <p id="download-status">Load a video file to use timeline controls.</p>
     </div>
 
     <div class="control-group">
@@ -222,6 +285,7 @@
     <button><a href="https://anthonyasc5.github.io/depthenginebyall/">MAIN VERSION
     </button>
     </a>
+    </div>
 </div>
 
 <script type="importmap">
@@ -289,6 +353,11 @@ async function startStream(deviceId) {
     activeTexture = new THREE.VideoTexture(video);
     material.uniforms.uTexture.value = activeTexture;
     video.onloadedmetadata = () => updateTexelSize(video.videoWidth, video.videoHeight);
+    setPlaybackControlsEnabled(false);
+    videoPlayBtn.textContent = 'PLAY';
+    videoSeek.value = '0';
+    setRangeFill(videoSeek);
+    setDownloadStatus('Camera stream active. Load a video file for timeline controls.');
 }
 
 refreshBtn.onclick = getCameras;
@@ -302,8 +371,20 @@ const imageInput = document.getElementById('imageInput');
 const dropZone = document.getElementById('drop-zone');
 const videoInput = document.getElementById('videoInput');
 const videoDropZone = document.getElementById('video-drop-zone');
+const videoPlayBtn = document.getElementById('btn-video-play');
+const videoRewindBtn = document.getElementById('btn-video-rewind');
+const videoSeek = document.getElementById('video-seek');
+const recordDurationSelect = document.getElementById('record-duration');
+const downloadLidarBtn = document.getElementById('btn-download-lidar');
+const canvasWhiteBtn = document.getElementById('btn-canvas-white');
+const downloadStatus = document.getElementById('download-status');
 const MAX_VIDEO_SECONDS = 30;
 let activeObjectUrl = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+let recordStopTimer = null;
+let renderDownloadSeconds = Number(recordDurationSelect.value || 15);
+let isCanvasWhite = false;
 
 function setTexture(tex) {
     material.uniforms.uTexture.value = tex;
@@ -312,6 +393,31 @@ function setTexture(tex) {
 function updateTexelSize(width, height) {
     if (!width || !height) return;
     material.uniforms.uTexelSize.value.set(1 / width, 1 / height);
+}
+
+function isSeekableFileVideo() {
+    return !video.srcObject && Number.isFinite(video.duration) && video.duration > 0;
+}
+
+function setPlaybackControlsEnabled(enabled) {
+    videoPlayBtn.disabled = !enabled;
+    videoRewindBtn.disabled = !enabled;
+    videoSeek.disabled = !enabled;
+}
+
+function updateSeekSlider() {
+    if (!isSeekableFileVideo()) return;
+    videoSeek.max = String(video.duration);
+    videoSeek.value = String(video.currentTime);
+    setRangeFill(videoSeek);
+}
+
+function setDownloadStatus(text) {
+    downloadStatus.textContent = text;
+}
+
+function setDownloadButtonLabel() {
+    downloadLidarBtn.textContent = `RECORD ${renderDownloadSeconds}S LIDAR & DOWNLOAD`;
 }
 
 function clearActiveObjectUrl() {
@@ -362,7 +468,15 @@ function loadVideoFile(file) {
         video.play().catch(() => {
             alert('Click once on the page to enable audio playback.');
         });
-        video.onloadedmetadata = () => updateTexelSize(video.videoWidth, video.videoHeight);
+        video.onloadedmetadata = () => {
+            updateTexelSize(video.videoWidth, video.videoHeight);
+            setPlaybackControlsEnabled(true);
+            videoSeek.min = '0';
+            videoSeek.max = String(video.duration || 1);
+            videoSeek.value = '0';
+            setRangeFill(videoSeek);
+            setDownloadStatus('Ready. Use Play/Rewind/Slider or record LiDAR output.');
+        };
         setTexture(new THREE.VideoTexture(video));
     };
     probe.onerror = () => {
@@ -372,8 +486,136 @@ function loadVideoFile(file) {
     probe.src = objectUrl;
 }
 
+function getRecorderMimeType() {
+    if (typeof MediaRecorder === 'undefined') return '';
+    const preferred = [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm'
+    ];
+    return preferred.find(type => MediaRecorder.isTypeSupported(type)) || '';
+}
+
+function downloadRecordedVideo() {
+    if (!recordedChunks.length) {
+        setDownloadStatus('No recording captured.');
+        return;
+    }
+    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    a.href = url;
+    a.download = `lidar-render-${stamp}.webm`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setDownloadStatus('Download complete.');
+}
+
+function startLidarRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') return;
+    if (typeof MediaRecorder === 'undefined') {
+        alert('Recording is not supported in this browser.');
+        return;
+    }
+    const stream = renderer.domElement.captureStream(30);
+    try {
+        if (!video.srcObject && typeof video.captureStream === 'function') {
+            const audioTrack = video.captureStream().getAudioTracks()[0];
+            if (audioTrack) stream.addTrack(audioTrack);
+        }
+    } catch {
+        // Audio track merge is optional.
+    }
+
+    const mimeType = getRecorderMimeType();
+    mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+
+    recordedChunks = [];
+    mediaRecorder.ondataavailable = e => {
+        if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+    };
+    mediaRecorder.onstop = () => {
+        if (recordStopTimer) {
+            clearTimeout(recordStopTimer);
+            recordStopTimer = null;
+        }
+        downloadLidarBtn.disabled = false;
+        setDownloadButtonLabel();
+        downloadRecordedVideo();
+    };
+    mediaRecorder.start();
+    downloadLidarBtn.disabled = true;
+    downloadLidarBtn.textContent = `RECORDING ${renderDownloadSeconds}S...`;
+    setDownloadStatus(`Recording ${renderDownloadSeconds}-second LiDAR clip...`);
+    recordStopTimer = setTimeout(() => {
+        stopLidarRecording();
+    }, renderDownloadSeconds * 1000);
+}
+
+function stopLidarRecording() {
+    if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
+    mediaRecorder.stop();
+}
+
 imageInput.onchange = e => loadImage(e.target.files[0]);
 videoInput.onchange = e => loadVideoFile(e.target.files[0]);
+
+videoPlayBtn.onclick = async () => {
+    if (!isSeekableFileVideo()) return;
+    if (video.paused) {
+        await video.play().catch(() => {});
+        videoPlayBtn.textContent = 'PAUSE';
+    } else {
+        video.pause();
+        videoPlayBtn.textContent = 'PLAY';
+    }
+};
+
+videoRewindBtn.onclick = () => {
+    if (!isSeekableFileVideo()) return;
+    video.currentTime = Math.max(0, video.currentTime - 3);
+    updateSeekSlider();
+};
+
+videoSeek.oninput = e => {
+    if (!isSeekableFileVideo()) return;
+    video.currentTime = Number(e.target.value);
+    setRangeFill(videoSeek);
+};
+
+downloadLidarBtn.onclick = () => {
+    startLidarRecording();
+};
+
+recordDurationSelect.onchange = e => {
+    renderDownloadSeconds = Number(e.target.value || 15);
+    if (!mediaRecorder || mediaRecorder.state !== 'recording') {
+        setDownloadButtonLabel();
+    }
+};
+
+canvasWhiteBtn.onclick = () => {
+    isCanvasWhite = !isCanvasWhite;
+    renderer.setClearColor(isCanvasWhite ? 0xffffff : 0x000000, 1);
+    canvasWhiteBtn.textContent = isCanvasWhite ? 'CANVAS WHITE: ON' : 'CANVAS WHITE: OFF';
+};
+
+video.addEventListener('timeupdate', () => {
+    updateSeekSlider();
+});
+
+video.addEventListener('play', () => {
+    if (isSeekableFileVideo()) videoPlayBtn.textContent = 'PAUSE';
+});
+
+video.addEventListener('pause', () => {
+    if (isSeekableFileVideo()) videoPlayBtn.textContent = 'PLAY';
+});
 
 dropZone.ondragover = e => {
     e.preventDefault();
@@ -513,10 +755,19 @@ document.getElementById('contrast-range').oninput = e =>
 
 const filterBtn = document.getElementById('btn-filters');
 const filterPanel = document.getElementById('filter-panel');
+const uiPanel = document.getElementById('ui-panel');
+const panelToggleBtn = document.getElementById('btn-panel-toggle');
 
 filterBtn.onclick = () => {
     const isOpen = filterPanel.classList.toggle('open');
     filterBtn.textContent = isOpen ? 'FILTERS ▾' : 'FILTERS ▸';
+};
+
+panelToggleBtn.onclick = () => {
+    const isCollapsed = uiPanel.classList.toggle('collapsed');
+    panelToggleBtn.textContent = isCollapsed ? '+' : '-';
+    panelToggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
+    panelToggleBtn.title = isCollapsed ? 'Expand panel' : 'Minimize panel';
 };
 
 document.getElementById('brightness-range').oninput = e =>
@@ -544,6 +795,11 @@ allRanges.forEach(input => {
     setRangeFill(input);
     input.addEventListener('input', () => setRangeFill(input));
 });
+
+setPlaybackControlsEnabled(false);
+videoSeek.value = '0';
+setRangeFill(videoSeek);
+setDownloadButtonLabel();
 
 function animate() {
     requestAnimationFrame(animate);

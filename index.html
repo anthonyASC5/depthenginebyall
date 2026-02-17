@@ -25,6 +25,31 @@
           transform-origin: top right;
         }
 
+        #ui-panel.collapsed #ui-panel-content {
+            display: none;
+        }
+
+        #ui-panel.collapsed {
+            width: 220px;
+            padding-bottom: 12px;
+        }
+
+        #btn-panel-toggle {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 32px;
+            margin: 0;
+            padding: 4px 0;
+            line-height: 1;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        #ui-panel > h3:first-of-type {
+            padding-right: 40px;
+        }
+
         h3 {
             margin: 0 0 15px 0;
             color: #111;
@@ -155,7 +180,9 @@
 <body>
 
 <div id="ui-panel">
+    <button id="btn-panel-toggle" type="button" aria-expanded="true" title="Minimize panel">-</button>
     <h3>Depth Engine</h3>
+    <div id="ui-panel-content">
     <h3> Idea + Prototype by Darius Desir 
         Engineered + Deployed by ALall
         Beta
@@ -224,6 +251,7 @@
     <button><a href="https://anthonyasc5.github.io/depthenginebyall/">MAIN VERSION
     </button>
     </a>
+    </div>
 </div>
 
 <script type="importmap">
@@ -515,10 +543,19 @@ document.getElementById('contrast-range').oninput = e =>
 
 const filterBtn = document.getElementById('btn-filters');
 const filterPanel = document.getElementById('filter-panel');
+const uiPanel = document.getElementById('ui-panel');
+const panelToggleBtn = document.getElementById('btn-panel-toggle');
 
 filterBtn.onclick = () => {
     const isOpen = filterPanel.classList.toggle('open');
     filterBtn.textContent = isOpen ? 'FILTERS ▾' : 'FILTERS ▸';
+};
+
+panelToggleBtn.onclick = () => {
+    const isCollapsed = uiPanel.classList.toggle('collapsed');
+    panelToggleBtn.textContent = isCollapsed ? '+' : '-';
+    panelToggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
+    panelToggleBtn.title = isCollapsed ? 'Expand panel' : 'Minimize panel';
 };
 
 document.getElementById('brightness-range').oninput = e =>
