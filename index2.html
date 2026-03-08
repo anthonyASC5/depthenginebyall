@@ -46,6 +46,12 @@
             padding-right: 40px;
         }
 
+        #ui-panel-content {
+            max-height: calc(100vh - 140px);
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
         h3 {
             margin: 0 0 15px 0;
             color: #fff;
@@ -77,6 +83,10 @@
 
         button:hover { background: #555; }
         button.active { background: #00cc44; color: black; font-weight: bold; }
+        button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
 
         input[type=range] {
             width: 100%;
@@ -164,6 +174,40 @@
         #filter-panel.open {
             max-height: 380px;
             opacity: 1;
+            overflow-y: auto;
+        }
+
+        #audio-fx-panel {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: max-height 0.25s ease, opacity 0.25s ease;
+            margin-top: 8px;
+        }
+
+        #audio-fx-panel.open {
+            max-height: 220px;
+            opacity: 1;
+            overflow-y: auto;
+        }
+
+        #btn-allfx {
+            background: #2b2b2b;
+            margin-bottom: 0;
+        }
+
+        #allfx-panel {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: max-height 0.25s ease, opacity 0.25s ease;
+            margin-top: 8px;
+        }
+
+        #allfx-panel.open {
+            max-height: 520px;
+            opacity: 1;
+            overflow-y: auto;
         }
 
         #drop-zone, #video-drop-zone {
@@ -246,13 +290,67 @@
     </div>
 
     <div class="control-group">
+        <button id="btn-audio-fx" type="button">AUDIO FX ▸</button>
+        <div id="audio-fx-panel">
+            <label>AUDIO REACTIVE</label>
+            <button id="btn-audio-reactive" type="button" disabled>AUDIO REACTIVE</button>
+            <label>AUDIO BAND</label>
+            <select id="audio-band-select">
+                <option value="full" selected>Full Spectrum</option>
+                <option value="bass">Bass Only</option>
+                <option value="mid">Mid Frequencies</option>
+                <option value="treble">Treble</option>
+            </select>
+            <label>AUDIO SENSITIVITY</label>
+            <input type="range" id="audio-sensitivity-range" min="0" max="5" step="0.01" value="1">
+        </div>
+    </div>
+
+    <div class="control-group">
         <label>DEPTH (Z AMPLITUDE)</label>
         <input type="range" id="depth-range" min="0" max="300" value="100">
     </div>
 
     <div class="control-group">
+        <label>PARTICLE SIZE</label>
+        <input type="range" id="particle-size-range" min="0.2" max="5" step="0.1" value="1">
+    </div>
+
+    <div class="control-group">
         <label>CALIBRATION (CONTRAST)</label>
         <input type="range" id="contrast-range" min="0" max="2" step="0.1" value="1.0">
+    </div>
+
+    <div class="control-group">
+        <button id="btn-allfx" type="button">ALLFX ▸</button>
+        <div id="allfx-panel">
+            <label>DEPTH SLICE</label>
+            <input type="range" id="slice-position-range" min="0" max="1" step="0.01" value="0.5">
+            <label>SLICE THICKNESS</label>
+            <input type="range" id="slice-thickness-range" min="0.01" max="0.5" step="0.01" value="0.12">
+            <label>SLICE ENABLED</label>
+            <button id="btn-slice-toggle" type="button">SLICE: OFF</button>
+            <label>RENDER MODE</label>
+            <select id="render-mode-select">
+                <option value="points" selected>Points</option>
+                <option value="surface">Surface Mesh</option>
+            </select>
+            <label>WIREFRAME MODE</label>
+            <button id="btn-wireframe-toggle" type="button">WIREFRAME: OFF</button>
+            <label>TRAIL INTENSITY</label>
+            <input type="range" id="trail-intensity-range" min="0" max="1" step="0.01" value="0">
+            <button id="btn-explode" type="button">EXPLODE</button>
+            <label>COLOR THEME</label>
+            <select id="color-theme-select">
+                <option value="default" selected>Default</option>
+                <option value="gold">Gold</option>
+                <option value="neon">Neon</option>
+                <option value="infrared">Infrared</option>
+                <option value="marble">White marble</option>
+                <option value="heatmap" >Pure depth heatmap</option>
+                <option value="silhouette">Black silhouette</option>
+            </select>
+        </div>
     </div>
 
     <div class="control-group">
@@ -304,7 +402,17 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 const state = {
     isLidarMode: false,
     depthStrength: 100,
-    contrast: 1
+    contrast: 1,
+    audioReactiveEnabled: false,
+    audioSensitivity: 1,
+    audioBand: 'full',
+    hasAudioTrack: false,
+    colorTheme: 'heatmap',
+    sliceEnabled: false,
+    renderMode: 'points',
+    wireframeEnabled: false,
+    trailIntensity: 0,
+    explodeAmount: 0
 };
 
 const scene = new THREE.Scene();
@@ -315,6 +423,19 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 document.body.appendChild(renderer.domElement);
+renderer.autoClear = true;
+
+const fadeScene = new THREE.Scene();
+const fadeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const fadeMaterial = new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: 0,
+    depthTest: false,
+    depthWrite: false
+});
+const fadeQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), fadeMaterial);
+fadeScene.add(fadeQuad);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -328,9 +449,28 @@ video.playsInline = true;
 video.volume = 1;
 
 let activeTexture = new THREE.VideoTexture(video);
+let audioContext = null;
+let audioSourceNode = null;
+let analyser = null;
+let frequencyData = null;
 
 const cameraSelect = document.getElementById('cameraSelect');
 const refreshBtn = document.getElementById('btn-refresh');
+const audioFxBtn = document.getElementById('btn-audio-fx');
+const audioFxPanel = document.getElementById('audio-fx-panel');
+const audioReactiveBtn = document.getElementById('btn-audio-reactive');
+const audioBandSelect = document.getElementById('audio-band-select');
+const audioSensitivityRange = document.getElementById('audio-sensitivity-range');
+const allFxBtn = document.getElementById('btn-allfx');
+const allFxPanel = document.getElementById('allfx-panel');
+const slicePositionRange = document.getElementById('slice-position-range');
+const sliceThicknessRange = document.getElementById('slice-thickness-range');
+const sliceToggleBtn = document.getElementById('btn-slice-toggle');
+const renderModeSelect = document.getElementById('render-mode-select');
+const wireframeToggleBtn = document.getElementById('btn-wireframe-toggle');
+const trailIntensityRange = document.getElementById('trail-intensity-range');
+const explodeBtn = document.getElementById('btn-explode');
+const colorThemeSelect = document.getElementById('color-theme-select');
 
 async function getCameras() {
     cameraSelect.innerHTML = '<option disabled selected>Select camera...</option>';
@@ -358,12 +498,14 @@ async function startStream(deviceId) {
     videoSeek.value = '0';
     setRangeFill(videoSeek);
     setDownloadStatus('Camera stream active. Load a video file for timeline controls.');
+    state.hasAudioTrack = false;
+    setAudioControlsState();
 }
 
 refreshBtn.onclick = getCameras;
 cameraSelect.onchange = e => startStream(e.target.value);
 
-getCameras().then(() => startStream());
+getCameras();
 
 /* ---------- IMAGE INPUT ---------- */
 
@@ -416,6 +558,89 @@ function setDownloadStatus(text) {
     downloadStatus.textContent = text;
 }
 
+function setAudioControlsState() {
+    audioReactiveBtn.disabled = !state.hasAudioTrack;
+    if (!state.hasAudioTrack) {
+        state.audioReactiveEnabled = false;
+        audioReactiveBtn.classList.remove('active');
+        material.uniforms.uAudioStrength.value = 0;
+    }
+}
+
+function inferMediaHasAudio(mediaEl) {
+    if (mediaEl.srcObject) return mediaEl.srcObject.getAudioTracks().length > 0;
+    if (mediaEl.audioTracks && typeof mediaEl.audioTracks.length === 'number') {
+        return mediaEl.audioTracks.length > 0;
+    }
+    if (typeof mediaEl.mozHasAudio === 'boolean') return mediaEl.mozHasAudio;
+    if (typeof mediaEl.webkitAudioDecodedByteCount === 'number' && mediaEl.webkitAudioDecodedByteCount > 0) {
+        return true;
+    }
+    if (typeof mediaEl.captureStream === 'function') {
+        try {
+            const stream = mediaEl.captureStream();
+            if (stream.getAudioTracks().length > 0) return true;
+        } catch {
+            // Best-effort fallback only.
+        }
+    }
+    return false;
+}
+
+function setupAudioGraph() {
+    if (!audioContext) audioContext = new AudioContext();
+    if (!audioSourceNode) audioSourceNode = audioContext.createMediaElementSource(video);
+    if (!analyser) {
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 512;
+        frequencyData = new Uint8Array(analyser.frequencyBinCount);
+        audioSourceNode.connect(analyser);
+        analyser.connect(audioContext.destination);
+    }
+}
+
+async function toggleAudioReactive() {
+    if (!state.hasAudioTrack) return;
+    if (!state.audioReactiveEnabled) {
+        try {
+            setupAudioGraph();
+            if (audioContext.state === 'suspended') await audioContext.resume();
+            state.audioReactiveEnabled = true;
+            audioReactiveBtn.classList.add('active');
+        } catch {
+            state.audioReactiveEnabled = false;
+            audioReactiveBtn.classList.remove('active');
+            alert('Audio reactive mode could not be started.');
+        }
+        return;
+    }
+    state.audioReactiveEnabled = false;
+    audioReactiveBtn.classList.remove('active');
+    material.uniforms.uAudioStrength.value = 0;
+}
+
+function computeAudioEnergy(data, mode) {
+    if (!data || !data.length) return 0;
+    let start = 0;
+    let end = data.length;
+
+    if (mode === 'bass') {
+        end = Math.min(20, data.length);
+    } else if (mode === 'mid') {
+        start = Math.min(20, data.length);
+        end = Math.min(80, data.length);
+    } else if (mode === 'treble') {
+        start = Math.min(80, data.length);
+    }
+
+    if (end <= start) return 0;
+    let sum = 0;
+    for (let i = start; i < end; i++) sum += data[i];
+    const avg = sum / (end - start);
+    const normalized = avg / 255;
+    return Math.min(1, normalized * state.audioSensitivity);
+}
+
 function setDownloadButtonLabel() {
     downloadLidarBtn.textContent = `RECORD ${renderDownloadSeconds}S LIDAR & DOWNLOAD`;
 }
@@ -436,6 +661,8 @@ function loadImage(file) {
         tex.needsUpdate = true;
         setTexture(tex);
         updateTexelSize(img.width, img.height);
+        state.hasAudioTrack = false;
+        setAudioControlsState();
     };
     activeObjectUrl = URL.createObjectURL(file);
     img.src = activeObjectUrl;
@@ -443,6 +670,8 @@ function loadImage(file) {
 
 function loadVideoFile(file) {
     if (!file || !file.type.startsWith('video/')) return;
+    state.hasAudioTrack = false;
+    setAudioControlsState();
     clearActiveObjectUrl();
     const objectUrl = URL.createObjectURL(file);
     const probe = document.createElement('video');
@@ -476,6 +705,12 @@ function loadVideoFile(file) {
             videoSeek.value = '0';
             setRangeFill(videoSeek);
             setDownloadStatus('Ready. Use Play/Rewind/Slider or record LiDAR output.');
+            state.hasAudioTrack = inferMediaHasAudio(video) || inferMediaHasAudio(probe);
+            setAudioControlsState();
+            setTimeout(() => {
+                state.hasAudioTrack = state.hasAudioTrack || inferMediaHasAudio(video);
+                setAudioControlsState();
+            }, 350);
         };
         setTexture(new THREE.VideoTexture(video));
     };
@@ -611,6 +846,10 @@ video.addEventListener('timeupdate', () => {
 
 video.addEventListener('play', () => {
     if (isSeekableFileVideo()) videoPlayBtn.textContent = 'PAUSE';
+    if (isSeekableFileVideo() && !state.hasAudioTrack) {
+        state.hasAudioTrack = inferMediaHasAudio(video);
+        setAudioControlsState();
+    }
 });
 
 video.addEventListener('pause', () => {
@@ -671,6 +910,14 @@ const material = new THREE.ShaderMaterial({
         uTexture: { value: activeTexture },
         uDepthFactor: { value: 100 },
         uDepthContrast: { value: 1 },
+        uPointScale: { value: 1 },
+        uAudioStrength: { value: 0 },
+        uTime: { value: 0 },
+        uExplodeAmount: { value: 0 },
+        uSlicePosition: { value: 0.5 },
+        uSliceThickness: { value: 0.12 },
+        uSliceEnabled: { value: 0 },
+        uColorTheme: { value: 4 },
         uLidarMode: { value: 0 },
         uBrightness: { value: 0 },
         uImageContrast: { value: 1 },
@@ -682,9 +929,20 @@ const material = new THREE.ShaderMaterial({
         uniform sampler2D uTexture;
         uniform float uDepthFactor;
         uniform float uDepthContrast;
+        uniform float uPointScale;
+        uniform float uAudioStrength;
+        uniform float uTime;
+        uniform float uExplodeAmount;
         uniform float uLidarMode;
         varying vec2 vUv;
         varying float vElevation;
+        varying float vDepthNorm;
+
+        float hash(vec3 p) {
+            p = fract(p * 0.3183099 + vec3(0.1, 0.2, 0.3));
+            p *= 17.0;
+            return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+        }
 
         void main() {
             vUv = uv;
@@ -693,11 +951,21 @@ const material = new THREE.ShaderMaterial({
             float fakeDepth = luma * (1.0 - distance(uv, vec2(0.5)));
             float realDepth = (luma - 0.1) * uDepthContrast;
             float depth = mix(fakeDepth, realDepth, uLidarMode);
+            float normalizedDepth = clamp(depth, 0.0, 1.0);
             vec3 pos = position;
-            pos.z += depth * uDepthFactor;
+            pos.z += depth * uDepthFactor * (1.0 + uAudioStrength * 2.0);
+            pos.z += sin(uTime * 10.0 + position.x * 0.02 + position.y * 0.02) * uAudioStrength * 10.0;
+            pos.xy += (uAudioStrength * 2.5) * vec2(
+                sin(position.x * 0.08 + uTime * 4.0),
+                cos(position.y * 0.08 + uTime * 4.0)
+            );
+            float noise = hash(vec3(position.xy * 0.07, normalizedDepth + uTime * 0.1));
+            vec3 dir = normalize(vec3(position.xy * 0.02, depth + 0.2));
+            pos += dir * uExplodeAmount * (0.4 + noise);
             vElevation = depth;
+            vDepthNorm = normalizedDepth;
             gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-            gl_PointSize = depth > 0.05 ? 2.5 : 0.0;
+            gl_PointSize = depth > 0.05 ? ((2.5 + uAudioStrength * 1.5) * uPointScale) : 0.0;
         }
     `,
     fragmentShader: `
@@ -705,11 +973,16 @@ const material = new THREE.ShaderMaterial({
         varying float vElevation;
         uniform sampler2D uTexture;
         uniform float uLidarMode;
+        uniform float uColorTheme;
+        uniform float uSlicePosition;
+        uniform float uSliceThickness;
+        uniform float uSliceEnabled;
         uniform float uBrightness;
         uniform float uImageContrast;
         uniform float uSaturation;
         uniform float uSharpness;
         uniform vec2 uTexelSize;
+        varying float vDepthNorm;
 
         vec3 applyImageAdjustments(vec2 uv) {
             vec3 center = texture2D(uTexture, uv).rgb;
@@ -726,16 +999,65 @@ const material = new THREE.ShaderMaterial({
             return clamp(color, 0.0, 1.0);
         }
 
+        vec3 themedColor(vec3 base, float elevation) {
+            float d = clamp(elevation, 0.0, 1.0);
+            vec3 heat = mix(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), d);
+
+            if (uColorTheme < 0.5) {
+                vec3 deepGold = vec3(0.33, 0.22, 0.02);
+                vec3 brightGold = vec3(1.0, 0.84, 0.25);
+                return mix(deepGold, brightGold, pow(d, 0.8));
+            }
+            if (uColorTheme < 1.5) {
+                vec3 neonA = vec3(0.05, 1.0, 0.75);
+                vec3 neonB = vec3(1.0, 0.08, 0.75);
+                return clamp(mix(neonA, neonB, d) + base * 0.35, 0.0, 1.0);
+            }
+            if (uColorTheme < 2.5) {
+                vec3 cool = vec3(0.1, 0.0, 0.0);
+                vec3 hot = vec3(1.0, 0.9, 0.2);
+                return mix(cool, hot, pow(d, 0.7));
+            }
+            if (uColorTheme < 3.5) {
+                float vein = sin(vUv.x * 130.0) * sin(vUv.y * 130.0);
+                float marble = smoothstep(0.15, 0.85, d + vein * 0.08);
+                return mix(vec3(0.72), vec3(1.0), marble);
+            }
+            if (uColorTheme < 4.5) {
+                return heat;
+            }
+            float silhouette = smoothstep(0.1, 0.4, d);
+            if (uColorTheme < 5.5) {
+                return vec3(1.0 - silhouette);
+            }
+            return mix(base, heat, uLidarMode * 0.5);
+        }
+
         void main() {
+            if (uSliceEnabled > 0.5) {
+                if (abs(vDepthNorm - uSlicePosition) > uSliceThickness) discard;
+            }
             vec3 base = applyImageAdjustments(vUv);
-            vec3 heat = mix(vec3(0,0,1), vec3(1,0,0), vElevation);
-            gl_FragColor = vec4(mix(base, heat, uLidarMode * 0.5), 1.0);
+            vec3 themed = themedColor(base, vElevation);
+            float overlay = uColorTheme < 5.5 ? 1.0 : 1.0;
+            gl_FragColor = vec4(mix(base, themed, overlay), 1.0);
         }
     `,
     transparent: true
 });
 
-scene.add(new THREE.Points(geometry, material));
+const pointsObject = new THREE.Points(geometry, material);
+scene.add(pointsObject);
+
+const surfaceGeometry = new THREE.PlaneGeometry(width * 0.5, height * 0.5, width - 1, height - 1);
+surfaceGeometry.rotateX(Math.PI);
+const surfaceMaterial = material.clone();
+surfaceMaterial.uniforms = material.uniforms;
+surfaceMaterial.wireframe = false;
+const surfaceMesh = new THREE.Mesh(surfaceGeometry, surfaceMaterial);
+surfaceMesh.visible = false;
+scene.add(surfaceMesh);
+let explosionStartTime = -100;
 
 window.toggleMode = () => {
     state.isLidarMode = !state.isLidarMode;
@@ -753,6 +1075,9 @@ document.getElementById('depth-range').oninput = e =>
 document.getElementById('contrast-range').oninput = e =>
     material.uniforms.uDepthContrast.value = Number(e.target.value);
 
+document.getElementById('particle-size-range').oninput = e =>
+    material.uniforms.uPointScale.value = Number(e.target.value);
+
 const filterBtn = document.getElementById('btn-filters');
 const filterPanel = document.getElementById('filter-panel');
 const uiPanel = document.getElementById('ui-panel');
@@ -761,6 +1086,16 @@ const panelToggleBtn = document.getElementById('btn-panel-toggle');
 filterBtn.onclick = () => {
     const isOpen = filterPanel.classList.toggle('open');
     filterBtn.textContent = isOpen ? 'FILTERS ▾' : 'FILTERS ▸';
+};
+
+audioFxBtn.onclick = () => {
+    const isOpen = audioFxPanel.classList.toggle('open');
+    audioFxBtn.textContent = isOpen ? 'AUDIO FX ▾' : 'AUDIO FX ▸';
+};
+
+allFxBtn.onclick = () => {
+    const isOpen = allFxPanel.classList.toggle('open');
+    allFxBtn.textContent = isOpen ? 'ALLFX ▾' : 'ALLFX ▸';
 };
 
 panelToggleBtn.onclick = () => {
@@ -781,6 +1116,57 @@ document.getElementById('saturation-range').oninput = e =>
 
 document.getElementById('sharpness-range').oninput = e =>
     material.uniforms.uSharpness.value = Number(e.target.value);
+audioReactiveBtn.onclick = () => {
+    toggleAudioReactive();
+};
+audioBandSelect.onchange = e => {
+    state.audioBand = e.target.value;
+};
+audioSensitivityRange.oninput = e => {
+    state.audioSensitivity = Number(e.target.value);
+};
+slicePositionRange.oninput = e => {
+    material.uniforms.uSlicePosition.value = Number(e.target.value);
+};
+sliceThicknessRange.oninput = e => {
+    material.uniforms.uSliceThickness.value = Number(e.target.value);
+};
+sliceToggleBtn.onclick = () => {
+    state.sliceEnabled = !state.sliceEnabled;
+    material.uniforms.uSliceEnabled.value = state.sliceEnabled ? 1 : 0;
+    sliceToggleBtn.textContent = state.sliceEnabled ? 'SLICE: ON' : 'SLICE: OFF';
+    sliceToggleBtn.classList.toggle('active', state.sliceEnabled);
+};
+renderModeSelect.onchange = e => {
+    state.renderMode = e.target.value;
+    pointsObject.visible = state.renderMode === 'points';
+    surfaceMesh.visible = state.renderMode === 'surface';
+};
+wireframeToggleBtn.onclick = () => {
+    state.wireframeEnabled = !state.wireframeEnabled;
+    surfaceMaterial.wireframe = state.wireframeEnabled;
+    wireframeToggleBtn.textContent = state.wireframeEnabled ? 'WIREFRAME: ON' : 'WIREFRAME: OFF';
+    wireframeToggleBtn.classList.toggle('active', state.wireframeEnabled);
+};
+trailIntensityRange.oninput = e => {
+    state.trailIntensity = Number(e.target.value);
+};
+explodeBtn.onclick = () => {
+    explosionStartTime = clock.getElapsedTime();
+};
+colorThemeSelect.onchange = e => {
+    state.colorTheme = e.target.value;
+    const themeMap = {
+        gold: 0,
+        neon: 1,
+        infrared: 2,
+        marble: 3,
+        heatmap: 4,
+        silhouette: 5,
+        default: 6
+    };
+    material.uniforms.uColorTheme.value = themeMap[state.colorTheme] ?? 6;
+};
 
 function setRangeFill(input) {
     const min = Number(input.min || 0);
@@ -800,9 +1186,19 @@ setPlaybackControlsEnabled(false);
 videoSeek.value = '0';
 setRangeFill(videoSeek);
 setDownloadButtonLabel();
+setAudioControlsState();
+colorThemeSelect.dispatchEvent(new Event('change'));
 
+const clock = new THREE.Clock();
 function animate() {
     requestAnimationFrame(animate);
+    material.uniforms.uTime.value = clock.getElapsedTime();
+    if (state.audioReactiveEnabled && analyser && frequencyData) {
+        analyser.getByteFrequencyData(frequencyData);
+        material.uniforms.uAudioStrength.value = computeAudioEnergy(frequencyData, state.audioBand);
+    } else {
+        material.uniforms.uAudioStrength.value = 0;
+    }
     controls.update();
     renderer.render(scene, camera);
 }

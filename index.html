@@ -3,104 +3,316 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>LiDAR Ready Particle System
-       
-
-    </title>
+    <title>LiDAR Ready Particle System</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: monospace; }
-        canvas { display: block; }
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;700&display=swap');
+
+        :root {
+            --hud-bg: rgba(2, 14, 7, 0.46);
+            --hud-glass: rgba(4, 28, 14, 0.5);
+            --hud-module: rgba(6, 34, 17, 0.56);
+            --hud-border: rgba(90, 255, 165, 0.85);
+            --hud-border-dim: rgba(40, 133, 80, 0.75);
+            --hud-text: #8fffb9;
+            --hud-text-dim: #4bc47c;
+            --hud-track: #10321d;
+            --hud-glow: rgba(90, 255, 165, 0.34);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            color: var(--hud-text);
+            font-family: 'Rajdhani', monospace;
+            background:
+                radial-gradient(circle at 84% 18%, rgba(43, 255, 142, 0.1), transparent 30%),
+                linear-gradient(180deg, #020703 0%, #010401 100%);
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background-image:
+                linear-gradient(rgba(60, 255, 149, 0.045) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(60, 255, 149, 0.045) 1px, transparent 1px);
+            background-size: 30px 30px;
+            opacity: 0.28;
+            z-index: 1;
+        }
+
+        body::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background: repeating-linear-gradient(
+                to bottom,
+                rgba(132, 255, 189, 0.03) 0px,
+                rgba(132, 255, 189, 0.03) 2px,
+                transparent 2px,
+                transparent 6px
+            );
+            z-index: 1;
+        }
+
+        canvas {
+            display: block;
+        }
 
         #ui-panel {
             position: absolute;
-            top: 20px; right: 20px;
-            width: 300px;
-            background: rgba(255, 255, 255, 0.96);
-            border: 1px solid #cfcfcf;
-            padding: 20px;
-            border-radius: 8px;
-            color: #111;
-            transform: scale(0.8);
-          transform-origin: top right;
+            z-index: 3;
+            top: 12px;
+            right: 12px;
+            width: min(400px, calc(100vw - 24px));
+            height: min(70vh, 540px);
+            padding: 6px;
+            background: var(--hud-bg);
+            border: 1px solid var(--hud-border);
+            box-shadow: 0 0 0 1px rgba(17, 78, 45, 0.9), 0 0 20px var(--hud-glow), inset 0 0 18px rgba(22, 110, 63, 0.2);
+            backdrop-filter: blur(2px);
+            clip-path: polygon(0 10px, 10px 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
         }
 
-        #ui-panel.collapsed #ui-panel-content {
-            display: none;
+        .hud-shell {
+            display: grid;
+            grid-template-columns: 74px 1fr;
+            gap: 6px;
+            height: 100%;
         }
 
-        #ui-panel.collapsed {
-            width: 220px;
-            padding-bottom: 12px;
+        .tab-strip {
+            background: var(--hud-glass);
+            border: 1px solid var(--hud-border-dim);
+            padding: 5px;
+            display: grid;
+            gap: 4px;
+            align-content: start;
+            overflow-y: auto;
         }
 
-        #btn-panel-toggle {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            width: 32px;
-            margin: 0;
-            padding: 4px 0;
-            line-height: 1;
-            font-size: 16px;
-            font-weight: bold;
-        }
-
-        #ui-panel > h3:first-of-type {
-            padding-right: 40px;
-        }
-
-        h3 {
-            margin: 0 0 15px 0;
-            color: #111;
-            font-size: 14px;
+        .tab-btn {
+            border: 1px solid var(--hud-border-dim);
+            background: linear-gradient(180deg, rgba(8, 55, 30, 0.88), rgba(5, 28, 15, 0.88));
+            color: var(--hud-text-dim);
+            font-family: 'Orbitron', monospace;
+            font-size: 9px;
+            letter-spacing: 0.6px;
+            line-height: 1.2;
             text-transform: uppercase;
-            border-bottom: 1px solid #d7d7d7;
-            padding-bottom: 10px;
+            padding: 6px 3px;
+            text-align: center;
+            cursor: pointer;
+            min-height: 34px;
+            transition: box-shadow 0.16s ease, color 0.16s ease, border-color 0.16s ease;
         }
 
-        .control-group { margin-bottom: 15px; }
+        .tab-btn:hover {
+            border-color: var(--hud-border);
+            color: var(--hud-text);
+            box-shadow: 0 0 10px rgba(60, 255, 149, 0.2);
+        }
+
+        .tab-btn.active {
+            border-color: var(--hud-border);
+            color: var(--hud-text);
+            box-shadow: inset 0 0 10px rgba(60, 255, 149, 0.2), 0 0 12px rgba(60, 255, 149, 0.32);
+        }
+
+        #ui-panel-content {
+            background: var(--hud-glass);
+            border: 1px solid var(--hud-border-dim);
+            padding: 6px;
+            display: grid;
+            grid-template-rows: auto 78px 1fr auto;
+            gap: 6px;
+            min-height: 0;
+        }
+
+        .panel-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .panel-title {
+            margin: 0;
+            font-family: 'Orbitron', monospace;
+            font-size: 12px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            text-shadow: 0 0 8px var(--hud-glow);
+        }
+
+        .panel-meta {
+            font-family: 'Orbitron', monospace;
+            font-size: 8px;
+            color: var(--hud-text-dim);
+            text-transform: uppercase;
+            text-align: right;
+            letter-spacing: 0.6px;
+            max-width: 54%;
+        }
+
+        .preview-window {
+            border: 1px solid var(--hud-border);
+            background:
+                linear-gradient(180deg, rgba(18, 110, 55, 0.08), rgba(7, 44, 22, 0.08)),
+                repeating-linear-gradient(0deg, rgba(60, 255, 149, 0.05) 0px, rgba(60, 255, 149, 0.05) 1px, transparent 1px, transparent 7px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--hud-text-dim);
+            font-family: 'Orbitron', monospace;
+            font-size: 10px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            text-shadow: 0 0 6px rgba(60, 255, 149, 0.18);
+            font-size: 9px;
+        }
+
+        .module-stack {
+            min-height: 0;
+            overflow: auto;
+        }
+
+        .module-panel {
+            display: none;
+            background: var(--hud-module);
+            border: 1px solid var(--hud-border);
+            box-shadow: inset 0 0 0 1px rgba(38, 131, 78, 0.58);
+            padding: 6px;
+            clip-path: polygon(0 8px, 8px 0, 100% 0, 100% 100%, 0 100%);
+        }
+
+        .module-panel.active {
+            display: block;
+        }
+
+        .stack-control {
+            margin-bottom: 6px;
+        }
+
+        .stack-control:last-child {
+            margin-bottom: 0;
+        }
+
+        .module-label {
+            display: block;
+            margin-bottom: 4px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid rgba(90, 255, 165, 0.35);
+            font-family: 'Orbitron', monospace;
+            font-size: 9px;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: var(--hud-text);
+        }
 
         label {
             display: block;
-            font-size: 11px;
-            color: #222;
-            margin-bottom: 5px;
+            font-family: 'Orbitron', monospace;
+            font-size: 9px;
+            letter-spacing: 0.7px;
+            text-transform: uppercase;
+            color: var(--hud-text-dim);
+            margin-bottom: 3px;
         }
 
-        select, button, input[type=file] {
+        select,
+        button,
+        input[type=file],
+        .hud-action {
             width: 100%;
-            padding: 8px;
-            background: #f4f4f4;
-            color: #111;
-            border: 1px solid #d1d1d1;
-            border-radius: 4px;
+            border-radius: 0;
+            border: 1px solid var(--hud-border);
+            background: linear-gradient(180deg, rgba(7, 58, 30, 0.88), rgba(5, 33, 17, 0.9));
+            color: var(--hud-text);
+            font-family: 'Orbitron', monospace;
+            font-size: 9px;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            padding: 6px 7px;
+            min-height: 26px;
             cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            box-shadow: inset 0 0 0 1px rgba(92, 255, 168, 0.16), 0 0 8px rgba(60, 255, 149, 0.15);
+            display: inline-block;
+            transition: filter 0.16s ease, box-shadow 0.16s ease, transform 0.08s ease;
             margin-bottom: 5px;
         }
 
-        button:hover { background: #e8e8e8; }
-        button.active { background: #00cc44; color: black; font-weight: bold; }
+        select,
+        input[type=file] {
+            font-family: 'Rajdhani', monospace;
+            font-size: 15px;
+            letter-spacing: 0.4px;
+            text-transform: none;
+            background: rgba(4, 29, 15, 0.9);
+        }
+
+        button:hover,
+        .hud-action:hover,
+        select:hover,
+        input[type=file]:hover {
+            filter: brightness(1.1);
+            box-shadow: inset 0 0 0 1px rgba(124, 255, 185, 0.32), 0 0 12px rgba(60, 255, 149, 0.34);
+        }
+
+        button:active,
+        .hud-action:active {
+            transform: translateY(1px);
+        }
+
+        button.active {
+            background: linear-gradient(180deg, rgba(109, 255, 177, 0.95), rgba(40, 140, 80, 0.96));
+            color: #042210;
+        }
+
+        #drop-zone,
+        #video-drop-zone {
+            border: 1px dashed var(--hud-border);
+            padding: 6px;
+            text-align: center;
+            font-size: 14px;
+            color: var(--hud-text-dim);
+            background: rgba(4, 25, 12, 0.52);
+        }
+
+        #drop-zone.dragover,
+        #video-drop-zone.dragover {
+            color: #d4ffe5;
+            border-color: #c2ffdb;
+            box-shadow: 0 0 10px rgba(98, 255, 172, 0.45);
+        }
 
         input[type=range] {
             width: 100%;
             -webkit-appearance: none;
             appearance: none;
-            height: 6px;
-            border-radius: 999px;
-            background: #4a4a4a;
+            height: 10px;
+            border: 1px solid var(--hud-border);
+            background: var(--hud-track);
             --fill: 50%;
+            margin-bottom: 6px;
         }
 
         input[type=range]::-webkit-slider-runnable-track {
             height: 6px;
-            border-radius: 999px;
             background: linear-gradient(
                 to right,
-                #ff8c1a 0%,
-                #ff8c1a var(--fill),
-                #4a4a4a var(--fill),
-                #4a4a4a 100%
+                #80ffb7 0%,
+                #58f8a0 var(--fill),
+                #10321d var(--fill),
+                #10321d 100%
             );
         }
 
@@ -110,147 +322,174 @@
             width: 14px;
             height: 14px;
             border-radius: 50%;
-            background: #ff8c1a;
+            border: 1px solid #dbffeb;
+            background: radial-gradient(circle at 35% 35%, #ecfff4 0%, #65ffaf 55%, #1b8d53 100%);
             margin-top: -4px;
-            border: none;
+            box-shadow: 0 0 8px rgba(90, 255, 165, 0.7);
         }
 
         input[type=range]::-moz-range-track {
             height: 6px;
-            border-radius: 999px;
-            background: #4a4a4a;
+            background: #10321d;
         }
 
         input[type=range]::-moz-range-progress {
             height: 6px;
-            border-radius: 999px;
-            background: #ff8c1a;
+            background: linear-gradient(90deg, #80ffb7, #58f8a0);
         }
 
         input[type=range]::-moz-range-thumb {
             width: 14px;
             height: 14px;
-            border: none;
             border-radius: 50%;
-            background: #ff8c1a;
-        }
-
-        #btn-filters {
-            background: #efefef;
-            margin-bottom: 0;
+            border: 1px solid #dbffeb;
+            background: radial-gradient(circle at 35% 35%, #ecfff4 0%, #65ffaf 55%, #1b8d53 100%);
+            box-shadow: 0 0 8px rgba(90, 255, 165, 0.7);
         }
 
         #filter-panel {
             max-height: 0;
             opacity: 0;
             overflow: hidden;
-            transition: max-height 0.25s ease, opacity 0.25s ease;
-            margin-top: 8px;
+            transition: max-height 0.2s ease, opacity 0.2s ease;
+            margin-top: 6px;
         }
 
         #filter-panel.open {
-            max-height: 380px;
+            max-height: 260px;
             opacity: 1;
         }
 
-        #drop-zone, #video-drop-zone {
-            border: 1px dashed #b8b8b8;
-            padding: 12px;
-            text-align: center;
-            font-size: 11px;
-            color: #333;
-            border-radius: 4px;
+        .hud-bottom {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            padding-top: 4px;
+            border-top: 1px solid rgba(90, 255, 165, 0.3);
         }
 
-        #drop-zone.dragover, #video-drop-zone.dragover {
-            background: rgba(0, 204, 68, 0.15);
-            border-color: #00cc44;
-            color: #00cc44;
+        .hud-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            grid-column: span 2;
         }
 
         .note {
-            font-size: 10px;
-            color: #333;
-            font-style: italic;
-            line-height: 1.3;
-            margin-top: 10px;
+            margin: 0;
+            font-family: 'Rajdhani', monospace;
+            font-size: 11px;
+            color: var(--hud-text-dim);
+            line-height: 1.1;
+            grid-column: span 2;
+        }
+
+        @media (max-width: 680px) {
+            #ui-panel {
+                left: 8px;
+                right: 8px;
+                top: 8px;
+                width: auto;
+                height: calc(100vh - 16px);
+            }
+
+            .hud-shell {
+                grid-template-columns: 64px 1fr;
+            }
+
+            #ui-panel-content {
+                grid-template-rows: auto 72px 1fr auto;
+            }
+
+            .panel-meta {
+                display: none;
+            }
         }
     </style>
 </head>
 <body>
 
 <div id="ui-panel">
-    <button id="btn-panel-toggle" type="button" aria-expanded="true" title="Minimize panel">-</button>
-    <h3>Depth Engine</h3>
-    <div id="ui-panel-content">
-    <h3> Idea + Prototype by Darius Desir 
-        Engineered + Deployed by ALall
-        Beta
-    </h3>
+    <div class="hud-shell">
+        <nav class="tab-strip">
+            <button class="tab-btn active" data-target="module-source">SOURCE</button>
+            <button class="tab-btn" data-target="module-depth-controls">DEPTH</button>
+        </nav>
 
-    <div class="control-group">
-        <label>VIDEO SOURCE</label>
-        <select id="cameraSelect">
-            <option value="" disabled selected>Loading cameras...</option>
-        </select>
-        <button id="btn-refresh">Refresh List</button>
-    </div>
+        <div id="ui-panel-content">
+            <div class="panel-head">
+                <h3 class="panel-title">Depth Engine HUD</h3>
+                <div class="panel-meta">Darius Desir + ALall | Beta</div>
+            </div>
 
-    <div class="control-group">
-        <label>IMAGE SOURCE</label>
-        <input type="file" id="imageInput" accept="image/*">
-        <div id="drop-zone">Drop depth image here</div>
-    </div>
+            <div class="preview-window">Scanner Feed Active</div>
 
-    <div class="control-group">
-        <label>VIDEO FILE SOURCE (MAX 30S)</label>
-        <input type="file" id="videoInput" accept="video/*">
-        <div id="video-drop-zone">Drop video here (LiDAR)</div>
-    </div>
+            <div class="module-stack">
+                <div class="module-panel active" id="module-source">
+                    <label class="module-label">Source Input</label>
+                    <div class="stack-control">
+                        <label>Camera Select</label>
+                        <select id="cameraSelect">
+                            <option value="" disabled selected>Loading cameras...</option>
+                        </select>
+                        <button id="btn-refresh">Refresh List</button>
+                    </div>
 
-    <div class="control-group">
-        <label>INTERPRETATION MODE</label>
-        <button id="btn-mode" onclick="toggleMode()">MODE: SIMULATION (LIGHT)</button>
-    </div>
+                    <div class="stack-control">
+                        <label>Image Upload</label>
+                        <input type="file" id="imageInput" accept="image/*">
+                        <div id="drop-zone">Drop depth image here</div>
+                    </div>
 
-    <div class="control-group">
-        <label>DEPTH (Z AMPLITUDE)</label>
-        <input type="range" id="depth-range" min="0" max="300" value="100">
-    </div>
+                    <div class="stack-control">
+                        <label>Video File</label>
+                        <input type="file" id="videoInput" accept="video/*">
+                        <div id="video-drop-zone">Drop video here (LiDAR)</div>
+                    </div>
+                </div>
 
-    <div class="control-group">
-        <label>CALIBRATION (CONTRAST)</label>
-        <input type="range" id="contrast-range" min="0" max="2" step="0.1" value="1.0">
-    </div>
+                <div class="module-panel" id="module-depth-controls">
+                    <label class="module-label">Depth Processing</label>
 
-    <div class="control-group">
-        <button id="btn-filters" type="button">FILTERS ▸</button>
-        <div id="filter-panel">
-            <label>BRIGHTNESS</label>
-            <input type="range" id="brightness-range" min="-1" max="1" step="0.01" value="0">
-            <label>CONTRAST</label>
-            <input type="range" id="image-contrast-range" min="0" max="3" step="0.01" value="1">
-            <label>SATURATION</label>
-            <input type="range" id="saturation-range" min="0" max="3" step="0.01" value="1">
-            <label>SHARPNESS</label>
-            <input type="range" id="sharpness-range" min="0" max="2" step="0.01" value="0">
+                    <div class="stack-control">
+                        <label>Interpretation Mode</label>
+                        <button id="btn-mode" onclick="toggleMode()">Mode: Simulation (Light)</button>
+                    </div>
+
+                    <div class="stack-control">
+                        <label>Depth Amplitude</label>
+                        <input type="range" id="depth-range" min="0" max="300" value="100">
+                    </div>
+
+                    <div class="stack-control">
+                        <label>Calibration / Contrast</label>
+                        <input type="range" id="contrast-range" min="0" max="2" step="0.1" value="1.0">
+                    </div>
+
+                    <div class="stack-control">
+                        <button id="btn-filters" type="button">Filters ></button>
+                        <div id="filter-panel">
+                            <label>Brightness</label>
+                            <input type="range" id="brightness-range" min="-1" max="1" step="0.01" value="0">
+                            <label>Contrast</label>
+                            <input type="range" id="image-contrast-range" min="0" max="3" step="0.01" value="1">
+                            <label>Saturation</label>
+                            <input type="range" id="saturation-range" min="0" max="3" step="0.01" value="1">
+                            <label>Sharpness</label>
+                            <input type="range" id="sharpness-range" min="0" max="2" step="0.01" value="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hud-bottom">
+                <p class="note">To Do: Add presets + react<br>all266@cornell.edu</p>
+                <div class="hud-actions">
+                    <a class="hud-action" href="index2.html">Test Place</a>
+                    <a class="hud-action" href="https://anthonyasc5.github.io/depthenginebyall/">Main Version</a>
+                </div>
+            </div>
         </div>
-    </div>
-
-    <p class="note">
-      <button><a href="index2.html">TEST PLACE</a></button>
-        <br>
-        <br>
-
-        To Do: 
-        Add Presets + react 
-
-        <br>
-        all266@cornell.edu
-    </p>
-    <button><a href="https://anthonyasc5.github.io/depthenginebyall/">MAIN VERSION
-    </button>
-    </a>
     </div>
 </div>
 
@@ -324,7 +563,7 @@ async function startStream(deviceId) {
 refreshBtn.onclick = getCameras;
 cameraSelect.onchange = e => startStream(e.target.value);
 
-getCameras().then(() => startStream());
+getCameras();
 
 /* ---------- IMAGE INPUT ---------- */
 
@@ -332,7 +571,6 @@ const imageInput = document.getElementById('imageInput');
 const dropZone = document.getElementById('drop-zone');
 const videoInput = document.getElementById('videoInput');
 const videoDropZone = document.getElementById('video-drop-zone');
-const MAX_VIDEO_SECONDS = 30;
 let activeObjectUrl = null;
 
 function setTexture(tex) {
@@ -372,13 +610,6 @@ function loadVideoFile(file) {
     const probe = document.createElement('video');
     probe.preload = 'metadata';
     probe.onloadedmetadata = () => {
-        const duration = probe.duration;
-        if (!Number.isFinite(duration) || duration > MAX_VIDEO_SECONDS) {
-            alert(`Video too long. Max allowed length is ${MAX_VIDEO_SECONDS} seconds.`);
-            URL.revokeObjectURL(objectUrl);
-            return;
-        }
-
         if (video.srcObject) {
             video.srcObject.getTracks().forEach(track => track.stop());
             video.srcObject = null;
@@ -402,34 +633,42 @@ function loadVideoFile(file) {
     probe.src = objectUrl;
 }
 
-imageInput.onchange = e => loadImage(e.target.files[0]);
-videoInput.onchange = e => loadVideoFile(e.target.files[0]);
+if (imageInput) {
+    imageInput.onchange = e => loadImage(e.target.files[0]);
+}
+if (videoInput) {
+    videoInput.onchange = e => loadVideoFile(e.target.files[0]);
+}
 
-dropZone.ondragover = e => {
-    e.preventDefault();
-    dropZone.classList.add('dragover');
-};
+if (dropZone) {
+    dropZone.ondragover = e => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    };
 
-dropZone.ondragleave = () => dropZone.classList.remove('dragover');
+    dropZone.ondragleave = () => dropZone.classList.remove('dragover');
 
-dropZone.ondrop = e => {
-    e.preventDefault();
-    dropZone.classList.remove('dragover');
-    loadImage(e.dataTransfer.files[0]);
-};
+    dropZone.ondrop = e => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        loadImage(e.dataTransfer.files[0]);
+    };
+}
 
-videoDropZone.ondragover = e => {
-    e.preventDefault();
-    videoDropZone.classList.add('dragover');
-};
+if (videoDropZone) {
+    videoDropZone.ondragover = e => {
+        e.preventDefault();
+        videoDropZone.classList.add('dragover');
+    };
 
-videoDropZone.ondragleave = () => videoDropZone.classList.remove('dragover');
+    videoDropZone.ondragleave = () => videoDropZone.classList.remove('dragover');
 
-videoDropZone.ondrop = e => {
-    e.preventDefault();
-    videoDropZone.classList.remove('dragover');
-    loadVideoFile(e.dataTransfer.files[0]);
-};
+    videoDropZone.ondrop = e => {
+        e.preventDefault();
+        videoDropZone.classList.remove('dragover');
+        loadVideoFile(e.dataTransfer.files[0]);
+    };
+}
 
 /* ---------- PARTICLES ---------- */
 
@@ -530,8 +769,8 @@ window.toggleMode = () => {
     material.uniforms.uLidarMode.value = state.isLidarMode ? 1 : 0;
     const btn = document.getElementById('btn-mode');
     btn.textContent = state.isLidarMode
-        ? 'MODE: LIDAR / DEPTH MAP'
-        : 'MODE: SIMULATION (LIGHT)';
+        ? 'Mode: Lidar / Depth Map'
+        : 'Mode: Simulation (Light)';
     btn.classList.toggle('active', state.isLidarMode);
 };
 
@@ -543,19 +782,10 @@ document.getElementById('contrast-range').oninput = e =>
 
 const filterBtn = document.getElementById('btn-filters');
 const filterPanel = document.getElementById('filter-panel');
-const uiPanel = document.getElementById('ui-panel');
-const panelToggleBtn = document.getElementById('btn-panel-toggle');
 
 filterBtn.onclick = () => {
     const isOpen = filterPanel.classList.toggle('open');
-    filterBtn.textContent = isOpen ? 'FILTERS ▾' : 'FILTERS ▸';
-};
-
-panelToggleBtn.onclick = () => {
-    const isCollapsed = uiPanel.classList.toggle('collapsed');
-    panelToggleBtn.textContent = isCollapsed ? '+' : '-';
-    panelToggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
-    panelToggleBtn.title = isCollapsed ? 'Expand panel' : 'Minimize panel';
+    filterBtn.textContent = isOpen ? 'Filters v' : 'Filters >';
 };
 
 document.getElementById('brightness-range').oninput = e =>
@@ -582,6 +812,20 @@ const allRanges = document.querySelectorAll('input[type="range"]');
 allRanges.forEach(input => {
     setRangeFill(input);
     input.addEventListener('input', () => setRangeFill(input));
+});
+
+const tabButtons = document.querySelectorAll('.tab-btn');
+const modulePanels = document.querySelectorAll('.module-panel');
+
+tabButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+        const targetId = btn.dataset.target;
+        tabButtons.forEach(other => other.classList.remove('active'));
+        modulePanels.forEach(panel => panel.classList.remove('active'));
+        btn.classList.add('active');
+        const targetPanel = document.getElementById(targetId);
+        if (targetPanel) targetPanel.classList.add('active');
+    });
 });
 
 function animate() {
