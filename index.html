@@ -80,6 +80,27 @@
             clip-path: polygon(0 10px, 10px 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
         }
 
+        #ui-panel.collapsed {
+            width: 250px;
+            height: auto;
+        }
+
+        #ui-panel.collapsed .hud-shell {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+
+        #ui-panel.collapsed .tab-strip,
+        #ui-panel.collapsed .preview-window,
+        #ui-panel.collapsed .module-stack,
+        #ui-panel.collapsed .hud-bottom {
+            display: none;
+        }
+
+        #ui-panel.collapsed #ui-panel-content {
+            grid-template-rows: auto;
+        }
+
         .hud-shell {
             display: grid;
             grid-template-columns: 74px 1fr;
@@ -140,6 +161,21 @@
             justify-content: space-between;
             gap: 6px;
             align-items: center;
+        }
+
+        .panel-head-main {
+            min-width: 0;
+        }
+
+        #btn-panel-toggle {
+            width: 28px;
+            min-height: 24px;
+            margin: 0;
+            padding: 3px 0;
+            font-size: 11px;
+            line-height: 1;
+            font-weight: 700;
+            flex-shrink: 0;
         }
 
         .panel-title {
@@ -257,6 +293,39 @@
             letter-spacing: 0.4px;
             text-transform: none;
             background: rgba(4, 29, 15, 0.9);
+        }
+
+        input[type=file] {
+            color: var(--hud-text-dim);
+            border-color: var(--hud-border-dim);
+        }
+
+        input[type=file]::file-selector-button {
+            border: 1px solid var(--hud-border);
+            background: linear-gradient(180deg, rgba(11, 80, 42, 0.95), rgba(5, 40, 20, 0.95));
+            color: var(--hud-text);
+            font-family: 'Orbitron', monospace;
+            font-size: 8px;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            padding: 4px 8px;
+            margin-right: 8px;
+            cursor: pointer;
+            box-shadow: inset 0 0 0 1px rgba(124, 255, 185, 0.2), 0 0 8px rgba(60, 255, 149, 0.25);
+        }
+
+        input[type=file]::-webkit-file-upload-button {
+            border: 1px solid var(--hud-border);
+            background: linear-gradient(180deg, rgba(11, 80, 42, 0.95), rgba(5, 40, 20, 0.95));
+            color: var(--hud-text);
+            font-family: 'Orbitron', monospace;
+            font-size: 8px;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            padding: 4px 8px;
+            margin-right: 8px;
+            cursor: pointer;
+            box-shadow: inset 0 0 0 1px rgba(124, 255, 185, 0.2), 0 0 8px rgba(60, 255, 149, 0.25);
         }
 
         button:hover,
@@ -421,6 +490,12 @@
                 padding: 4px 2px;
             }
 
+            #btn-panel-toggle {
+                width: 34px;
+                min-height: 28px;
+                font-size: 12px;
+            }
+
             .preview-window {
                 font-size: 8px;
                 letter-spacing: 0.6px;
@@ -442,6 +517,11 @@
                 top: 6px;
                 max-height: 58vh;
             }
+
+            #ui-panel.collapsed {
+                width: 170px;
+                max-height: none;
+            }
         }
     </style>
 </head>
@@ -456,8 +536,11 @@
 
         <div id="ui-panel-content">
             <div class="panel-head">
-                <h3 class="panel-title">Depth Engine HUD</h3>
-                <div class="panel-meta">Darius Desir + ALall | Beta</div>
+                <div class="panel-head-main">
+                    <h3 class="panel-title">Depth Engine HUD</h3>
+                    <div class="panel-meta">Darius Desir + ALall | Beta</div>
+                </div>
+                <button id="btn-panel-toggle" type="button" aria-expanded="true" title="Minimize panel">-</button>
             </div>
 
             <div class="preview-window">Scanner Feed Active</div>
@@ -569,8 +652,12 @@ video.autoplay = true;
 video.muted = true;
 video.playsInline = true;
 video.volume = 1;
+video.setAttribute('playsinline', '');
+video.setAttribute('webkit-playsinline', '');
+video.preload = 'auto';
 
 let activeTexture = new THREE.VideoTexture(video);
+let pendingUserPlay = false;
 
 const cameraSelect = document.getElementById('cameraSelect');
 const refreshBtn = document.getElementById('btn-refresh');
@@ -655,13 +742,20 @@ function loadVideoFile(file) {
 
         activeObjectUrl = objectUrl;
         video.loop = true;
-        video.muted = false;
+        video.muted = true;
         video.volume = 1;
+        video.playsInline = true;
+        video.setAttribute('playsinline', '');
+        video.setAttribute('webkit-playsinline', '');
         video.src = activeObjectUrl;
-        video.play().catch(() => {
-            alert('Click once on the page to enable audio playback.');
+        video.load();
+        video.play().then(() => {
+            pendingUserPlay = false;
+        }).catch(() => {
+            pendingUserPlay = true;
         });
         video.onloadedmetadata = () => updateTexelSize(video.videoWidth, video.videoHeight);
+        video.onloadeddata = () => updateTexelSize(video.videoWidth, video.videoHeight);
         setTexture(new THREE.VideoTexture(video));
     };
     probe.onerror = () => {
@@ -670,6 +764,16 @@ function loadVideoFile(file) {
     };
     probe.src = objectUrl;
 }
+
+function retryVideoPlayIfNeeded() {
+    if (!pendingUserPlay) return;
+    video.play().then(() => {
+        pendingUserPlay = false;
+    }).catch(() => {});
+}
+
+window.addEventListener('click', retryVideoPlayIfNeeded, { passive: true });
+window.addEventListener('touchend', retryVideoPlayIfNeeded, { passive: true });
 
 if (imageInput) {
     imageInput.onchange = e => loadImage(e.target.files[0]);
@@ -820,11 +924,22 @@ document.getElementById('contrast-range').oninput = e =>
 
 const filterBtn = document.getElementById('btn-filters');
 const filterPanel = document.getElementById('filter-panel');
+const uiPanel = document.getElementById('ui-panel');
+const panelToggleBtn = document.getElementById('btn-panel-toggle');
 
 filterBtn.onclick = () => {
     const isOpen = filterPanel.classList.toggle('open');
     filterBtn.textContent = isOpen ? 'Filters v' : 'Filters >';
 };
+
+if (panelToggleBtn && uiPanel) {
+    panelToggleBtn.onclick = () => {
+        const isCollapsed = uiPanel.classList.toggle('collapsed');
+        panelToggleBtn.textContent = isCollapsed ? '+' : '-';
+        panelToggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
+        panelToggleBtn.title = isCollapsed ? 'Expand panel' : 'Minimize panel';
+    };
+}
 
 document.getElementById('brightness-range').oninput = e =>
     material.uniforms.uBrightness.value = Number(e.target.value);
