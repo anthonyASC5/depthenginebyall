@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-3JW6S4B71L"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-3JW6S4B71L');
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LiDAR Ready Particle System</title>
@@ -593,18 +601,18 @@
                             <label>Brightness</label>
                             <input type="range" id="brightness-range" min="-1" max="1" step="0.01" value="0">
                             <label>Contrast</label>
-                            <input type="range" id="image-contrast-range" min="0" max="3" step="0.01" value="1">
+                            <input type="range" id="image-contrast-range" min="0" max="30" step="0.01" value="1">
                             <label>Saturation</label>
-                            <input type="range" id="saturation-range" min="0" max="3" step="0.01" value="1">
+                            <input type="range" id="saturation-range" min="0" max="400" step="0.01" value="60">
                             <label>Sharpness</label>
-                            <input type="range" id="sharpness-range" min="0" max="2" step="0.01" value="0">
+                            <input type="range" id="sharpness-range" min="0" max="100" step="0.01" value="50">
                         </div>
                     </div>
                 </div>
             </div>
 
             <div class="hud-bottom">
-                <p class="note">To Do: Add presets + react<br>all266@cornell.edu</p>
+                <p class="note">To Do: Add presets. Latest Update: March 2026 (ui)<br>all266@cornell.edu</p>
                 <div class="hud-actions">
                     <a class="hud-action" href="index2.html">Test Place</a>
                     <a class="hud-action" href="https://anthonyasc5.github.io/depthenginebyall/">Main Version</a>
